@@ -1,0 +1,19 @@
+
+
+
+DailyEval
+This tag is for my daily evaluations. each line after that tag gets added to it's own document for daily evaluations until a new tag or break tag is included
+break:
+
+#mistake the mistake tag is where I write down mistakes I made during the day, ex miscalculations
+
+#note general notes
+
+LPT things from reddit.com/r/LifeProTips
+
+
+MON 11:03 PM
+I write notes in messenger sometimes so this tag puts them in a document and removes the time text you get when copy-pasting from there
+
+Spreed
+notes from books I've read on a speed reading app
