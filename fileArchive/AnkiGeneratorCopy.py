@@ -6,40 +6,15 @@ import logging
 # import html.parser as hp
 #from html.parser import HTMLParser
 
-import numpy as np  # because matrices are nice
-
-# Todos
-# Kindle: nothing
-# Gen text: nothing
-# Dyna: make mvp for splitting list into cards. make all combos. make recursive cards, ie "what are the steps of method y"
-# Fun idea : ...-Guesser. train neural net to guess where ...'s should be based on my anki cards as labeled data. Then write alg that uses that for generating new cards
-# write into parser to translate my shorthands (like funk = funktion etc) to the normal words?
-# tool: take som inputet action whenever it matches a string. ex delete all instances of X
-
-
-# This program formats different formats of text (kindle highlights, book notes, and notes from my note taking program) and creates a file that can be imported to anki
-# Input: My Clippings.txt file from kindle,
-# Output: output txt files  which can be imported into anki (using the anku import function).
-# The resulting anki cards will have the quote on the front, the book and author on the back and the tag "book"
-# Note: anki can only have a single ASCII character as separator between fields. This will cause cards to be formatted incorrecrly if the quote/author/title contains the separatedBy character in them
-# This can be seen if the numcards isn't the same as the number of cards added by the import
-# If this happens you can run the program again with other ascii characters and import the file again
-# Since Anki doesn't allow identical cards you can do this until you have no missing cards left, you won't get any duplicates
-# Remember to import to the correct anki deck
-
-
-
 def main():
-    runMode = greeter()
+    desired_mode = get_mode_from_user()
+    modePicker(desired_mode)
 
-    modePicker(runMode)
-
-
-def greeter():
-    runMode = 0
+def get_mode_from_user():
+    desired_mode = 0
     possibleModes = 5
-    while runMode > possibleModes or runMode < 1:
-        runMode = int(
+    while desired_mode > possibleModes or desired_mode < 1:
+        desired_mode = int(
             input(
                 "Welcome to the Fantastic Anki Generator."
                 "What function do you want to use? \n "
@@ -51,8 +26,8 @@ def greeter():
                 "Your desired mode:"
             )
         )
-    # 4: generate anki deck with custom target input and output (not implemented yet) "")
-    return runMode  # greets used and prompts them to pick run mode
+    #TODO 4: generate anki deck with custom target input and output (not implemented yet) "")
+    return desired_mode
 
 
 def modePicker(runMode):
@@ -60,6 +35,8 @@ def modePicker(runMode):
         kindle_corrupt_bypass(
             970
         )  # creates anki cards from kindle clippings, the 970 is the number of cards that are corrupted in my anki-kindle deck, can be omitted for others.
+        #For other users, uncomment the line below
+
     elif runMode == 2:
         generalTextParser("input.txt", "output.txt", "^", "AnkiGenerator")
 
@@ -73,7 +50,7 @@ def modePicker(runMode):
         testMode()
     else:
         print("invalid input")
-        main()  # calls differnt functions based on result from greeter
+        main()  # calls differnt functions based on result from get_mode_from_user
 
 
 
@@ -81,14 +58,11 @@ def modePicker(runMode):
 def generalTextParser(inputName, outputName, separatedBy, tag):
     # Bugs : (minor) tries to create cards from empty lines
     tag = tag
-    # File init
-
-    with open(inputName, "r") as inputfile:
-        lines = inputfile.readlines()
+    lines = get_input_text(inputName)
 
     #TODO change this to a repository
-    all_lists = {
-        "output" : [],
+    desired_lists_to_sort_to = {
+        outputName : [],
         "notes_and_mistakes" : [],
         "trash" : [],
         "anki_list" : [],
@@ -99,20 +73,25 @@ def generalTextParser(inputName, outputName, separatedBy, tag):
     #TODO make this into a DTO
     cardBack = ""
 
-    numCards = 0
-    n = 0
-    ##regex list
     regex_dict = get_regexes()
+
     ##textParser
+
+    desired_lists_to_sort_to = sort_text_into_lists(lines, desired_lists_to_sort_to, regex_dict, tag, separatedBy, outputName)
+    save_lists_to_files(desired_lists_to_sort_to)
+    #NOTE I expect that each list, ex "trash", in desired_lists_to_sort_to get updated if trash gets updated
+    #printNumCards(tagCounter, numCards)
+
+def sort_text_into_lists(lines, desired_lists_to_sort_to, regex_dict, tag, separatedBy, outputName):
     for line in lines: #HACK previous version of this skipped the last line, unsure why
         if re.match(regex_dict["dailyEvalTag"], line, re.IGNORECASE):
             tag = "DailyEval"
             # print("I like to moce it")
-            all_lists["daily_evaluations"].append(line)
+            desired_lists_to_sort_to["daily_evaluations"].append(line)
         elif re.match(regex_dict["mistaketag"], line):
             tag = "mistakes"
             line = " " + line  # Anki doesn't allow # as first sign it seems?
-            all_lists["notes_and_mistakes"].append(" " + separatorPadding(line, separatedBy, 2, tag, ""))
+            desired_lists_to_sort_to["notes_and_mistakes"].append(" " + separatorPadding(line, separatedBy, 2, tag, ""))
         elif re.match(regex_dict["newBook"], line):
             cardBack = line.strip()
             tag = "Book:"
@@ -122,16 +101,16 @@ def generalTextParser(inputName, outputName, separatedBy, tag):
         elif re.match(regex_dict["noteTag"], line):
             tag = "notes"
             line = " " + line  # Anki doesn't allow # as first sign it seems?
-            all_lists["notes_and_mistakes"].append(" " + separatorPadding(line, separatedBy, 2, tag, ""))
+            desired_lists_to_sort_to["notes_and_mistakes"].append(" " + separatorPadding(line, separatedBy, 2, tag, ""))
 
         elif re.match(regex_dict["protip"], line):
             tag = "LifeProTips"
-            all_lists["anki_list"].append(separatorPadding(line, separatedBy, 3, tag, "LPT"))
+            desired_lists_to_sort_to["anki_list"].append(separatorPadding(line, separatedBy, 3, tag, "LPT"))
 
         elif re.match(regex_dict["breakTag"], line) or tag == "break":
             tag = "break"
             # print("Howdy Yall,  the line is : "+ line)
-            all_lists["unhandled_text"].append(line)
+            desired_lists_to_sort_to["unhandled_text"].append(line)
 
         elif re.match(regex_dict["spreedReg"], line):
             cardBack = line.strip()
@@ -139,40 +118,39 @@ def generalTextParser(inputName, outputName, separatedBy, tag):
 
         elif re.match(regex_dict["messengerTag"], line, re.IGNORECASE):
             tag = "messenger"
-            all_lists["trash"].append(line)
+            desired_lists_to_sort_to["trash"].append(line)
 
         elif re.match(regex_dict["spreedReg"], tag):
-            all_lists["output"].append(book_source_padder(line, separatedBy, cardBack, tag))
+            desired_lists_to_sort_to[outputName].append(book_source_padder(line, separatedBy, cardBack, tag))
 
         elif tag == "30secSummaries":
             # card = book_source_padder(line, separatedBy, cardBack, tag)
 
-            all_lists["output"].append(separatorPadding(line, separatedBy, 2, tag, cardBack))
+            desired_lists_to_sort_to[outputName].append(separatorPadding(line, separatedBy, 2, tag, cardBack))
 
         elif tag == "Book:":
             # card = book_source_padder(line, separatedBy, cardBack, tag)
-            all_lists["output"].append(separatorPadding(line, separatedBy, 2, tag, cardBack))
+            desired_lists_to_sort_to[outputName].append(separatorPadding(line, separatedBy, 2, tag, cardBack))
 
         elif tag == "DailyEval":
-            all_lists["daily_evaluations"].append(line)
+            desired_lists_to_sort_to["daily_evaluations"].append(line)
         else:
-            all_lists["unhandled_text"].append(line)
+            desired_lists_to_sort_to["unhandled_text"].append(line)
 
+    return desired_lists_to_sort_to
 
-    save_lists_to_files(all_lists)
-    #NOTE I expect that each list, ex "trash", in all_lists get updated if trash gets updated
-    #printNumCards(tagCounter, numCards)
-
-
-def save_lists_to_files(all_lists):
-    for listname, lines in all_lists.items():
+def save_lists_to_files(desired_lists_to_sort_to):
+    for listname, lines in desired_lists_to_sort_to.items():
         with open(listname, "w") as text_file:
             for line in lines:
                 # print(f"list:",listname)
                 # print(f"line:",line)
                 text_file.write(line)
 
-
+def get_input_text(inputName):
+    with open(inputName, "r") as inputfile:
+        lines = inputfile.readlines()
+    return lines
 
 def fileSearch(inputline, comparisonFile):
     print("it fucking works, my god it works")
