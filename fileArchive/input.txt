@@ -1,7 +1,4 @@
-
-
-
-DailyEval
+Daily Eval
 This tag is for my daily evaluations. each line after that tag gets added to it's own document for daily evaluations until a new tag or break tag is included
 break:
 
