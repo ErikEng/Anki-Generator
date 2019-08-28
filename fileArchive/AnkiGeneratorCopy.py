@@ -1,7 +1,8 @@
 import re
-import time  # just for the luls
-
-
+import time  # just for a joke function
+#from autocorrect import spell
+from typing import List, Dict
+import logging
 # import html.parser as hp
 #from html.parser import HTMLParser
 
@@ -61,85 +62,20 @@ def modePicker(runMode):
         )  # creates anki cards from kindle clippings, the 970 is the number of cards that are corrupted in my anki-kindle deck, can be omitted for others.
     elif runMode == 2:
         generalTextParser("input.txt", "output.txt", "^", "AnkiGenerator")
+
     elif runMode == 3:
-        defaultIn = "input.txt"
-        defaultOut = "output.txt"
-        defaultTag = "AnkiGenerator"
-        defaultSeparator = "^"
-        inputFile = input(
-            "What file do you want to take from? \n if you want the default of 'input.txt', just press enter"
-        )
-        outputFile = input(
-            "What file do you want the cards to be written to? \n if you want the default of "
-            + defaultOut
-            + ", press enter"
-        )
-        separator = input(
-            "What separator sign do you want? \n space to keep "
-            + defaultSeparator
-            + " as default"
-        )
-        tag = input(
-            "What tag do you want? \n space to keep " + defaultTag + "as default tag"
-        )
-        if inputFile == "":
-            inputFile = defaultIn
-        if outputFile == "":
-            outputFile = defaultOut
-        if separator == "":
-            separator = defaultSeparator
-
-        if tag == "":
-            tag = defaultTag
-
-        # print("debugg, in: " + inputFile + "out: "+ outputFile)
-        generalTextParser(inputFile, outputFile, separator, tag)
+        init_default_mode()
 
     elif runMode == 4:
-        print("Hacking in to all main frames")
-        time.sleep(3)
-        print("You've now hacked all computers, you are the hackerman")
-        main()
+        hack_mainframe()
 
     elif runMode == 5:
-        print("running test mode")
         testMode()
     else:
         print("invalid input")
         main()  # calls differnt functions based on result from greeter
 
 
-def testMode():
-    # hackytest
-    # if(charNeedEscape('d')):
-    #    print("why?")
-    #    return False
-    # print("inTest")
-    # refString = "distribution arises naturally in Bayesian"
-    # testString = "observedfeaturevector is X =(X1. . .XL, XL +1. . . X2L)"
-    # regex = hackyRegExGen(testString)
-    # fileSearch(testString, 'referenceFiles.txt') #mode for testing specific fuctions faster
-
-    # regTest
-    line = "you have 2 cycles that control your sleep, so you need to keep them synchronisted to avoid being fatigued, how do you do that?; Go to sleep at a very regular rate and don't vary it at all if possible. Track your sleep with pulse trackers"
-    tag = "30secSummaries"
-    cardBack = "30sec: Biohacker/super-selfmedicator summary"
-    separatedBy = ";"
-    # card = book_source_padder(line, separatedBy, cardBack, tag)
-    res = separatorPadding(line, separatedBy, 2, tag, cardBack)
-    # regList , muu = regexTags()
-    # print(regList)
-    # print(len(regList))
-    # print(re.match(regList[0], refString))
-
-    # dynatest
-    # testHead = "Gnome Plan"
-    # testList = ["Steal Socs", "???", "Profit"]
-    # testOut = 'dynaAutoOut.txt'
-    # #res = dynaCardWriter(testHead, testList, 1, testOut)
-    # #res = numStepStr(testList)
-    # res = findList('test.html', False)
-    # print(res)
 
 
 def generalTextParser(inputName, outputName, separatedBy, tag):
@@ -147,113 +83,95 @@ def generalTextParser(inputName, outputName, separatedBy, tag):
     tag = tag
     # File init
 
-    inputfile = open(inputName, "r")
-    lines = inputfile.readlines()
-    inputfile.close()
-    f = open(outputName, "w")
-    noteMistOut = open("NotesAndMistakesOut.txt", "w")
-    backToDyna = open(
-        "BackToDynalist.txt", "w"
-    )  # text file of things that shouldn't be ankified
-    trash = open("Trash.txt", "w")
-    catchAnki = open("catchallAnki.txt", "w")
-    DailyEvalFile = open("DailyEval.txt", "w")
+    with open(inputName, "r") as inputfile:
+        lines = inputfile.readlines()
 
+    #TODO change this to a repository
+    all_lists = {
+        "output" : [],
+        "notes_and_mistakes" : [],
+        "trash" : [],
+        "anki_list" : [],
+        "daily_evaluations" : [],
+        "unhandled_text": [],
+    }
+
+    #TODO make this into a DTO
     cardBack = ""
-
-    dailyEval = (
-        r"(daily)+\s*(eval)+(uation)*"
-    )  # regex noticing when I start a daily evaluation
 
     numCards = 0
     n = 0
     ##regex list
-    regexArray, tagCounter = regexTags()
-    print("tash")
+    regex_dict = get_regexes()
     ##textParser
-    while n < (len(lines) - 1):  # skip the last line
-        line = lines[n]
-        # print("current tag = "+ tag )
-        if (
-            len(line) == 0
-        ):  # This doesnt actually fix the empty line bug. todo think of other fixes
-            trash.write(line)
-        elif re.match(regexArray[0], line, re.IGNORECASE):
+    for line in lines: #HACK previous version of this skipped the last line, unsure why
+        if re.match(regex_dict["dailyEvalTag"], line, re.IGNORECASE):
             tag = "DailyEval"
             # print("I like to moce it")
-            DailyEvalFile.write(line)
-            tagCounter[0] += 1
-        elif re.match(regexArray[1], line):
+            all_lists["daily_evaluations"].append(line)
+        elif re.match(regex_dict["mistaketag"], line):
             tag = "mistakes"
             line = " " + line  # Anki doesn't allow # as first sign it seems?
-            noteMistOut.write(" " + separatorPadding(line, separatedBy, 2, tag, ""))
-            tagCounter[1] += 1
-        elif re.match(regexArray[2], line):
+            all_lists["notes_and_mistakes"].append(" " + separatorPadding(line, separatedBy, 2, tag, ""))
+        elif re.match(regex_dict["newBook"], line):
             cardBack = line.strip()
             tag = "Book:"
-        elif re.match(regexArray[3], line):
+        elif re.match(regex_dict["newSummary"], line):
             cardBack = line.strip()
             tag = "30secSummaries"
-        elif re.match(regexArray[4], line):
+        elif re.match(regex_dict["noteTag"], line):
             tag = "notes"
             line = " " + line  # Anki doesn't allow # as first sign it seems?
-            noteMistOut.write(" " + separatorPadding(line, separatedBy, 2, tag, ""))
-            tagCounter[4] += 1
+            all_lists["notes_and_mistakes"].append(" " + separatorPadding(line, separatedBy, 2, tag, ""))
 
-        elif re.match(regexArray[5], line):
+        elif re.match(regex_dict["protip"], line):
             tag = "LifeProTips"
-            catchAnki.write(separatorPadding(line, separatedBy, 3, tag, "LPT"))
-            tagCounter[5] += 1
+            all_lists["anki_list"].append(separatorPadding(line, separatedBy, 3, tag, "LPT"))
 
-        elif re.match(regexArray[6], line) or tag == "break":
+        elif re.match(regex_dict["breakTag"], line) or tag == "break":
             tag = "break"
             # print("Howdy Yall,  the line is : "+ line)
-            backToDyna.write(line)
-            tagCounter[6] += 1
+            all_lists["unhandled_text"].append(line)
 
-        elif re.match(regexArray[7], line):
+        elif re.match(regex_dict["spreedReg"], line):
             cardBack = line.strip()
             tag = "Spreed"
-            tagCounter[7] += 1
 
-        elif re.match(regexArray[8], line, re.IGNORECASE):
+        elif re.match(regex_dict["messengerTag"], line, re.IGNORECASE):
             tag = "messenger"
-            trash.write(line)
-            tagCounter[8] += 1
+            all_lists["trash"].append(line)
 
-        elif re.match(regexArray[7], tag):
-            f.write(book_source_padder(line, separatedBy, cardBack, tag))
-            tagCounter[7] += 1
+        elif re.match(regex_dict["spreedReg"], tag):
+            all_lists["output"].append(book_source_padder(line, separatedBy, cardBack, tag))
 
         elif tag == "30secSummaries":
             # card = book_source_padder(line, separatedBy, cardBack, tag)
 
-            f.write(separatorPadding(line, separatedBy, 2, tag, cardBack))
-            tagCounter[3] += 1
+            all_lists["output"].append(separatorPadding(line, separatedBy, 2, tag, cardBack))
 
         elif tag == "Book:":
             # card = book_source_padder(line, separatedBy, cardBack, tag)
-            f.write(separatorPadding(line, separatedBy, 2, tag, cardBack))
-            tagCounter[2] += 1
+            all_lists["output"].append(separatorPadding(line, separatedBy, 2, tag, cardBack))
 
         elif tag == "DailyEval":
-            DailyEvalFile.write(line)
-            tagCounter[0] += 1
+            all_lists["daily_evaluations"].append(line)
         else:
-            backToDyna.write(line)
-            numCards += 1
+            all_lists["unhandled_text"].append(line)
 
-        n += 1
-        # print("1    " + line)
-    #    currentBook = "KaosCows"
 
-    #    n+=1
-    f.close()
-    noteMistOut.close()
-    backToDyna.close()
-    trash.close()
-    catchAnki.close()
-    printNumCards(tagCounter, numCards)
+    save_lists_to_files(all_lists)
+    #NOTE I expect that each list, ex "trash", in all_lists get updated if trash gets updated
+    #printNumCards(tagCounter, numCards)
+
+
+def save_lists_to_files(all_lists):
+    for listname, lines in all_lists.items():
+        with open(listname, "w") as text_file:
+            for line in lines:
+                # print(f"list:",listname)
+                # print(f"line:",line)
+                text_file.write(line)
+
 
 
 def fileSearch(inputline, comparisonFile):
@@ -274,35 +192,21 @@ def fileSearch(inputline, comparisonFile):
         # print("mi")
         try:
             m = re.search(reg, line, re.IGNORECASE)
-            # m = splitCompare(inputline, line) #fucking damn it this was here
-            # print("in try")
+
             if m:
-                # print("in if")
-                # finalRes = m.group(1)
                 finRes2 = m.group()
                 print(finRes2)
                 ref.close()
-                # print("in m")
-                # print(finalRes)
-                # print(line[116085: 116122])
                 return m.group()
 
             else:
-                # print("in else")
-                # print(inputline)
-                # print(reg)
-                # print(regline)
                 ref.close()
 
         except:
             print("Trashman")
             trash.write(inputline)
 
-    # print("int the end")
-    # print(finalRes)
     print(finRes2)
-
-    # print("in the end")
     ref.close()  # searches comparisonFile for inputline with added spaces
 
 
@@ -447,37 +351,43 @@ def outdated_dynalist_text_gen(inputName, outputName, separatedBy, tag):
     )  # outdated version of generalTextParser
 
 
-def regexTags():
-    dailyEvalTag = r"Daily eval"  # 0
-    mistaketag = r"\#mistake"  # 1
-    newBook = r"Book:"  # tag that identifies when transcription starts on new book
-    newSummary = r"30sec:"  # 3
-    noteTag = r"\#note"  # 4
-    protip = r"LPT"  # 5
-    breakTag = r"break:"  # 6
-    spreedReg = r"Spreed"  # 7
-    messengerTag = (
-        r"(JAN|FEB|MAR|APR|MAY|JUN|Jun|JUL|Jul|AUG|Aug|SEP|OCT|NOV|DEC|Mon|Tue|Wed|Thu|Fri|Sat|Sun)"
-    )  # 8
 
-    tagArray = [
-        dailyEvalTag,
-        mistaketag,
-        newBook,
-        newSummary,
-        noteTag,
-        protip,
-        breakTag,
-        spreedReg,
-        messengerTag,
-    ]
-    tagCounter = [0]*(len(tagArray))
-    # regexArray = [tagArray, tagCounter]
-    print("In regex Tags, tagA:")
-    print(tagArray)
-    print("tagCount")
-    print(tagCounter)
-    return tagArray, tagCounter
+
+def get_regexes()->Dict[str, str]: #Q Unsure if the regex is counted as a str or some other format?
+    regexes = {
+        "dailyEvalTag": r"Daily eval",
+        "mistaketag": r"\#mistake",
+        "newBook": r"Book:",
+        "newSummary": r"30sec:",
+        "noteTag": r"\#note",
+        "protip": r"LPT",
+        "breakTag": r"break:",
+        "spreedReg": r"Spreed",
+        "messengerTag": r"(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|MON|TUE|WED|THU|FRI|SAT|SUN)",
+    }
+    return regexes
+
+def regex_padded_with_spaces(inputline):
+    #creates a regex with "optional space" character between each character of the input.
+    # This is used to match texts with incorrect spacing to the corresponding part of a text with correct spacing
+    inputline = "".join(inputline.split())
+    reg = ""
+    #if ((len(inputline)-1) < cutoff):
+    #    cutoff = (len(inputline)-1)
+    for character in inputline:
+        if not(is_special_char(character)):
+                character= '\\'+ character #escape special characters
+
+        reg = reg + character + "\s*"
+    return reg
+
+def is_special_char(character):
+    #true if character needs to be escaped for the regex
+    normalChar = r"[a-zA-Z1-9]"
+    if (re.match(normalChar, character)):
+        return True
+    else:
+        return False #determines if the char should be escaped for regex
 
 
 def printNumCards(
@@ -499,36 +409,6 @@ def printNumCards(
     )  # prints how many cards/lines where written to each file
 
 
-def old_generalTextParser(
-    inputName
-):  # got bored with this midwaythrough so its not done
-    # A general parser that splits up the text into arrays for each regex and sends those arrays to the approrpiate method for that regex
-    # Ex if it identifies the #mistake tag it will add it to a list of #mistake s which will then be turned into a mistake anki deck by a later function
-    inputfile = open(inputName, "r")
-    lines = inputfile.readlines()
-
-    # Regexes, ev todo: make this into argument instead
-    dailyEvalTag = (
-        r"(daily)+\s*(eval)+(uation)*"
-    )  # regex noticing when I start a daily evaluation
-    mistakeTag = r"\#mistake"
-    spreedTag = r"Book:"
-
-    # lists
-    dailyEvalList = []  # if error, try changing this to other data structure
-    mistakeList = []
-    spreedList = []
-    listList = []
-    listList.append(dailyEvalList)
-    listList.append(mistakeList)
-    listList.append(spreedList)
-    listList.append([0], "corn")
-    # todo make the list of list work
-    # Alteratively, figure out some other method of splitting lines into lists that then can be processed by submethods
-    print(listList)
-    currentReg = ""
-    startPos = 0
-    endPos = 0
 
 
 def book_source_padder(line, separatedBy, book, tag):
@@ -567,26 +447,26 @@ def separatorPadding(
     return line  # pads cards with correct amount of separators
 
 
-def dynalistCardGenerator(dynalistHTMLFile, outputName, separatedBy, tag):
+#def dynalistCardGenerator(dynalistHTMLFile, outputName, separatedBy, tag):
     # Todos
     # look into how to use either the raw text or OPML to automatically create ankis from dynalist lists
     # Ideally it can look at the entire structure and break it up pseudo recursively
     # ie it will ask you about what the n top structures are and then what the n entries of each structure is
 
     # dynaListAllSteps: takes in html file and picks a list and outputs cards with front being the head and number of elements in list. Back is the list
-    dynaListAllSteps(dynalistHTMLFile)
+    #dynaListAllSteps(dynalistHTMLFile)
     # things i do with dyna anki: paste lists. take
     # htmlParser(dynalistHTMLFile)
 
 
-def dynaListAllSteps(dynalistHTMLFile, lookForLeaves=False, outputName="out-dyna.txt"):
-    # @param lookForLeaves, boolean of if the program should look for the leaves in the html and create card from that or just do cards of the topmost list
-    if lookForLeaves:
-        head, list = findList(dynalistHTMLFile, leaves=True)
-    else:
-        head, list = findList(dynalistHTMLFile, leaves=False)
-    mode = 1
-    dynaCardWriter(head, list, mode, outputName)
+# def dynaListAllSteps(dynalistHTMLFile, lookForLeaves=False, outputName="out-dyna.txt"):
+#     # @param lookForLeaves, boolean of if the program should look for the leaves in the html and create card from that or just do cards of the topmost list
+    # if lookForLeaves:
+    #     head, list = findList(dynalistHTMLFile, leaves=True)
+    # else:
+    #     head, list = findList(dynalistHTMLFile, leaves=False)
+    # mode = 1
+    # dynaCardWriter(head, list, mode, outputName)
 
 
 def dynaCardWriter(head, list, mode, outputFile):
@@ -611,18 +491,91 @@ def numStepStr(list):
     return stepsString
 
 
-def findList(HTMLFile, leaves):
+#def findList(HTMLFile, leaves):
     # res = hp.feed(dynalistHTMLFile)
-    with open(HTMLFile) as f:
+    #with open(HTMLFile) as f:
 
-        parser = HTMLParser()
+        #parser = HTMLParser()
         # print(HTMLFile)
-        print(parser.feed(f))
+        #print(parser.feed(f))
         #                "<!DOCTYPE html><html><body><ul><li>test<ul><li>ma</li><li>asd<ul><li>lksdfn</li></ul></li></ul></li></ul></body></html>"
 
         # print(hp.get_starttag_text())
-        print("ended coding here")
-    return None
+        #print("ended coding here")
+    #return None
 
+# def spell_check_word(word):
+#     return spell(word)
+
+
+def hack_mainframe():
+    print("Hacking all main frames")
+    time.sleep(3)
+    print("You've now hacked all computers, you are the hackerman")
+    main()
+
+def init_default_mode():
+    defaultIn = "input.txt"
+    defaultOut = "output.txt"
+    defaultTag = "AnkiGenerator"
+    defaultSeparator = "^"
+    inputFile = input(
+        "What file do you want to take from? \n if you want the default of 'input.txt', just press enter"
+    )
+    outputFile = input(
+        "What file do you want the cards to be written to? \n if you want the default of "
+        + defaultOut
+        + ", press enter"
+    )
+    separator = input(
+        "What separator sign do you want? \n space to keep "
+        + defaultSeparator
+        + " as default"
+    )
+    tag = input(
+        "What tag do you want? \n space to keep " + defaultTag + "as default tag"
+    )
+    if inputFile == "":
+        inputFile = defaultIn
+    if outputFile == "":
+        outputFile = defaultOut
+    if separator == "":
+        separator = defaultSeparator
+
+    if tag == "":
+        tag = defaultTag
+    generalTextParser(inputFile, outputFile, separator, tag)
+
+def testMode():
+    # hackytest
+    # if(charNeedEscape('d')):
+    #    print("why?")
+    #    return False
+    # print("inTest")
+    # refString = "distribution arises naturally in Bayesian"
+    # testString = "observedfeaturevector is X =(X1. . .XL, XL +1. . . X2L)"
+    # regex = hackyRegExGen(testString)
+    # fileSearch(testString, 'referenceFiles.txt') #mode for testing specific fuctions faster
+    print("running test mode")
+    # regTest
+    line = "you have 2 cycles that control your sleep, so you need to keep them synchronisted to avoid being fatigued, how do you do that?; Go to sleep at a very regular rate and don't vary it at all if possible. Track your sleep with pulse trackers"
+    tag = "30secSummaries"
+    cardBack = "30sec: Biohacker/super-selfmedicator summary"
+    separatedBy = ";"
+    # card = book_source_padder(line, separatedBy, cardBack, tag)
+    res = separatorPadding(line, separatedBy, 2, tag, cardBack)
+    # regList , muu = regexTags()
+    # print(regList)
+    # print(len(regList))
+    # print(re.match(regList[0], refString))
+
+    # dynatest
+    # testHead = "Gnome Plan"
+    # testList = ["Steal Socs", "???", "Profit"]
+    # testOut = 'dynaAutoOut.txt'
+    # #res = dynaCardWriter(testHead, testList, 1, testOut)
+    # #res = numStepStr(testList)
+    # res = findList('test.html', False)
+    # print(res)
 
 main()
