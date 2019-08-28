@@ -4,7 +4,7 @@ break:
 
 #mistake the mistake tag is where I write down mistakes I made during the day, ex miscalculations
 
-#note general notes
+#note general notes teeest
 
 LPT things from reddit.com/r/LifeProTips
 
