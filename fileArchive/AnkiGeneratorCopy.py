@@ -1,3 +1,6 @@
+#Standard Modules
+#3d party Modules
+#Internal Modules
 import re
 import time  # just for a joke function
 #from autocorrect import spell
@@ -5,29 +8,30 @@ from typing import List, Dict
 import logging
 # import html.parser as hp
 #from html.parser import HTMLParser
-
+from spellchecker import SpellChecker
+from get_my_errors import get_my_errors
+from dto import get_mode_dto
 def main():
     desired_mode = get_mode_from_user()
     modePicker(desired_mode)
 
 #TODO move this to Viewer
 def get_mode_from_user():
-    desired_mode = 0
-    possibleModes = 5
-    while desired_mode > possibleModes or desired_mode < 1:
-        desired_mode = int(
-            input(
-                "Welcome to the Fantastic Anki Generator."
-                "What function do you want to use? \n "
-                "1: Generate Kindle Anki cards \n "
-                "2: Run general generator in quick mode \n "
-                "3: Run general generator in step by step mode \n "
-                "4 : take over the world \n "
-                "5 : run testing mode \n "
-                "Your desired mode:"
-            )
+    desired_mode = int(
+        input(
+            "Welcome to the Fantastic Anki Generator. "
+            "What function do you want to use? \n "
+            "1: Generate Kindle Anki cards \n "
+            "2: Run general generator in quick mode \n "
+            "3: Run general generator in step by step mode \n "
+            "4 : take over the world \n "
+            "5 : run testing mode \n "
+            "6 : run splitting mode \n "
+            "7 : run timespamp removal mode \n "
+            "8 : format to ascii \n "
+            "Your desired mode: \n"
         )
-    #TODO 4: generate anki deck with custom target input and output (not implemented yet) "")
+    )
     return desired_mode
 
 
@@ -45,16 +49,28 @@ def modePicker(runMode):
 
 
     elif runMode == 2:
-        generalTextParser("input.txt", "output.txt", "^", "AnkiGenerator")
+        general_mode("input.txt", "output", "^", "AnkiGenerator")
 
     elif runMode == 3:
         user_input_mode()
 
     elif runMode == 4:
-        hack_mainframe()
+        hack_mainframe_mode()
 
     elif runMode == 5:
         testMode()
+
+    elif runMode == 6:
+        mode = get_mode_dto("split_mode")
+        locked_triggers_mode(mode)
+
+    elif runMode == 7:
+        mode = get_mode_dto("timestamp_removal_mode")
+        locked_triggers_mode(mode)
+
+    elif runMode == 8:
+        mode = get_mode_dto("format_to_ascii")
+        locked_triggers_mode(mode)
     else:
         print("invalid input")
         get_mode_from_user()
@@ -90,16 +106,15 @@ def user_input_mode():
 
     if tag == "":
         tag = defaultTag
-    generalTextParser(inputFile, outputFile, separator, tag)
+    general_mode(inputFile, outputFile, separator, tag)
 
-def hack_mainframe():
+def hack_mainframe_mode():
     print("Hacking all main frames")
     time.sleep(3)
     print("You've now hacked all computers, you are the hackerman")
     main()
 
 def testMode():
-
     print("running test mode")
     # regTest
     line = "you have 2 cycles that control your sleep, so you need to keep them synchronisted to avoid being fatigued, how do you do that?; Go to sleep at a very regular rate and don't vary it at all if possible. Track your sleep with pulse trackers"
@@ -116,29 +131,102 @@ def get_input_text(inputName):
     return lines
 
 #TODO move this to Model
-def generalTextParser(inputName, outputName, separatedBy, tag):
+def general_mode(inputName, output_file_name, separatedBy, tag):
     # BUG : (minor) tries to create cards from empty lines
     lines = get_input_text(inputName)
 
     #TODO move this to Repo
     desired_lists_to_sort_to = {
-        outputName : [],
+        output_file_name : [],
         "notes_and_mistakes" : [],
         "trash" : [],
         "anki_list" : [],
         "daily_evaluations" : [],
         "unhandled_text": [],
+        "corrections_dict":[],
     }
+
 
     cardBack = ""
 
     regex_dict = get_regexes()
 
-    desired_lists_to_sort_to = sort_text_into_lists(lines, desired_lists_to_sort_to, regex_dict, tag, separatedBy, outputName)
+    desired_lists_to_sort_to = sort_text_into_lists(lines, desired_lists_to_sort_to, regex_dict, tag, separatedBy, output_file_name)
 
-    save_lists_to_files(desired_lists_to_sort_to)
 
-def sort_text_into_lists(lines, desired_lists_to_sort_to, regex_dict, tag, separatedBy, outputName):
+    save_dict_of_lists_to_files(desired_lists_to_sort_to)
+
+def locked_triggers_mode(mode_name):
+    #parsing mode that manually locks parser to not look for other triggers. used for long texts that might contain other triggers that should be ignored
+    lines = get_input_text("input.txt")
+    results = {"output":[]}
+    for line in lines:
+        result_dict = run_mode(mode_name, line)
+        results = combine_dictionaries(result_dict, results )
+    results = post_process_results(results, mode_name)
+    print(results)
+    save_dict_of_lists_to_files(results)
+
+def run_mode(mode, line) ->Dict[str, List[str]]:
+    result_dict = {}
+    if mode.name == "timestamp_removal":
+        str_line = timestamp_removal(line)
+        word_list = split_line_into_words(str_line)
+
+    elif mode.name == "split_mode":
+        #adds to a list that gets split up in post-processing
+        word_list = split_line_into_words(line)
+
+    elif mode.name == "format_to_ascii":
+        word_list = format_to_ascii(line)
+
+    else:
+        raise Exception(f"mode {mode} not found")
+    assert isinstance(word_list, List)
+    key = mode.output_name
+    result_dict[key] = word_list
+    return result_dict
+
+def post_process_results(results, mode):
+    if mode == "split_mode":
+        smaller_lists_dict = split_list_to_smaller_lists(results)
+        processed = combine_dictionaries(results, smaller_lists_dict)
+        return processed
+    return results
+
+def format_to_ascii(line):
+    line = str(line)
+    line = line.replace("\n", " .")
+    line = line.replace("'b'", "")
+    line = line.replace("'b", "")
+    line = line.replace("\'b", "")
+    line_str = str(line)
+    line_str = line_str.encode('ascii', errors='ignore')
+    line_str = line_str.decode('ascii')
+    if isinstance(line_str, str):
+
+        word_list = line_str.split(" ")
+    else:
+        print(f"line_str:{line_str}, was type: {type(line_str)}")
+        word_list = line_str
+    return word_list
+
+def combine_dictionaries( new_dict , original_dict):
+    for key, value in new_dict.items():
+        if key not in original_dict:
+            original_dict[key]=[]
+
+        original_dict[key]=original_dict[key] + value # desired behaviour {'test': [1,2]}+{'test': [3,4]} = {'test': [1,2,3,4]}
+    return original_dict
+
+def split_line_into_words(line):
+    words = (str(line).split(" "))
+    word_list =  []
+    for word in words:
+        word_list.append(word+ " ")
+    return word_list
+
+def sort_text_into_lists(lines, desired_lists_to_sort_to, regex_dict, tag, separatedBy, output_file_name):
     for line in lines:
         if re.match(regex_dict["dailyEvalTag"], line, re.IGNORECASE):
             tag = "DailyEval"
@@ -176,16 +264,32 @@ def sort_text_into_lists(lines, desired_lists_to_sort_to, regex_dict, tag, separ
             desired_lists_to_sort_to["trash"].append(line)
 
         elif re.match(regex_dict["spreedReg"], tag):
-            desired_lists_to_sort_to[outputName].append(book_source_padder(line, separatedBy, cardBack, tag))
+            desired_lists_to_sort_to[output_file_name].append(book_source_padder(line, separatedBy, cardBack, tag))
+
+        elif re.match(regex_dict["spellcheck"], line):
+            tag = "spellcheck"
+
+        elif re.match(regex_dict["yt_transcribe"], line):
+            tag = "yt_transcribe"
+
+        elif tag == "yt_transcribe":
+            transcibed_text = timestamp_removal(line)
+            desired_lists_to_sort_to[output_file_name].append(transcibed_text)
+
+        elif tag == "spellcheck":
+            spell_checked_line, new_corrections = spell_check_handler(line)
+            desired_lists_to_sort_to["corrections_dict"].append(new_corrections)
+            desired_lists_to_sort_to[output_file_name].append(spell_checked_line)
+
 
         elif tag == "30secSummaries":
             # card = book_source_padder(line, separatedBy, cardBack, tag)
 
-            desired_lists_to_sort_to[outputName].append(separatorPadding(line, separatedBy, 2, tag, cardBack))
+            desired_lists_to_sort_to[output_file_name].append(separatorPadding(line, separatedBy, 2, tag, cardBack))
 
         elif tag == "Book:":
             # card = book_source_padder(line, separatedBy, cardBack, tag)
-            desired_lists_to_sort_to[outputName].append(separatorPadding(line, separatedBy, 2, tag, cardBack))
+            desired_lists_to_sort_to[output_file_name].append(separatorPadding(line, separatedBy, 2, tag, cardBack))
 
         elif tag == "DailyEval":
             desired_lists_to_sort_to["daily_evaluations"].append(line)
@@ -195,11 +299,15 @@ def sort_text_into_lists(lines, desired_lists_to_sort_to, regex_dict, tag, separ
     return desired_lists_to_sort_to
 
 #TODO move this to repo
-def save_lists_to_files(desired_lists_to_sort_to):
+def save_dict_of_lists_to_files(desired_lists_to_sort_to):
     for listname, lines in desired_lists_to_sort_to.items():
         with open(listname+".txt", "w") as text_file:
             for line in lines:
-                text_file.write(line)
+                if isinstance(line, str):
+                    text_file.write(line + " ")
+                else:
+                    logging.error(f"line:{line} was not a str")
+
 
 #TODO move this to Regex?
 def get_regexes()->Dict[str, str]:
@@ -211,17 +319,69 @@ def get_regexes()->Dict[str, str]:
         "noteTag": r"\#note",
         "protip": r"LPT",
         "breakTag": r"break:",
-        "spreedReg": r"Spreed",
+        "spreedReg": r"Spreed:",
         "messengerTag": r"(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|MON|TUE|WED|THU|FRI|SAT|SUN)",
+        "spellcheck": r"spellcheck:",
+        "academic_check": r"academic:",
+        "gdocs_split": r"gdocs_split:",
+        "yt_transcribe": r"yt_transcribe:",
     }
     return regexes
 
-def kindle_text_to_anki(firstCard, inputName, outputName, separatorSign, cardTag):
+def split_list_to_smaller_lists(word_list):
+    number_of_words_per_gdoc = 22000
+    number_of_splits = (len(word_list)//number_of_words_per_gdoc )+ 1 #integer division rounded up
+    if number_of_splits > 30: #to avoid creating massive amount of files by accident
+        number_of_splits = 30
+    current_list_num = 0
+    smaller_lists = {}
+    while current_list_num < number_of_splits:
+        start_of_current_list = 0+current_list_num*number_of_words_per_gdoc
+
+        end_of_current_list = number_of_words_per_gdoc +current_list_num*number_of_words_per_gdoc
+
+        current_list = word_list[start_of_current_list:end_of_current_list] #picks the current 22000 word interval
+        smaller_lists["gdocs_split"+str(current_list_num)]= ' '.join(current_list) #Saves to dict
+        current_list_num+=1
+
+    return smaller_lists
+
+def timestamp_removal(line):
+    is_timestamp = r"\d{2}.\d{2}"
+    if not re.match(is_timestamp, line):
+        return line
+    return ""
+
+def spell_check_handler(line):
+    spell = SpellChecker()
+    #load ok words
+    spell.word_frequency.load_words(['imp', '\n'])
+    my_common_errors = get_my_errors()
+    corrected_line = ""
+    new_corrections=""
+    for word in line.split(" "):
+        try:
+            corrected_word = my_common_errors[word]
+            print(f"Erik correction:{word}, to:{corrected_word}")
+
+        except:
+
+            corrected_word = spell.correction(word)
+            if not corrected_word==word:
+                new_corrections+=f"\"{word}\": \"{corrected_word}\", \n"
+        # else:
+        #     corrected_word = word
+        #     print(f"no prob:{word}")
+
+        corrected_line+= " "+corrected_word
+    return corrected_line, new_corrections
+
+def kindle_text_to_anki(firstCard, inputName, output_file_name, separatorSign, cardTag):
     # todo make the referenceFiles approach work. Adding a parenthesis to hackyRegExGen might work, but makes it even hackier
     inputfile = open(inputName, "r")
     lines = inputfile.readlines()
     inputfile.close()
-    outPut = open(outputName, "w")
+    outPut = open(output_file_name, "w")
     noSpaceFile = open("noSpaces.txt", "w")
     # refs = open("referenceFiles.txt", 'w')
     separatedBy = separatorSign
@@ -289,11 +449,7 @@ def separatorCounter(line, separatedBy):
     numSeparations = len(separations)
     return numSeparations  # counts number of separator signs in line
 
-def separatorPadding(
-    line, separatedBy, fieldNum, tag, backSide
-):  # note- it assumes that if it gets 2 fields, the first is the front and the second is the back
-    # returns the line split into or padded with the separatedBy fieldNum times
-
+def separatorPadding(line, separatedBy, fieldNum, tag, backSide):
     numSeparations = separatorCounter(line, separatedBy)
     missingSeparators = fieldNum - numSeparations
     if missingSeparators > 3:
@@ -308,6 +464,7 @@ def separatorPadding(
         print("Error in sepatorPadding, more separators than indicated fields")
 
     return line  # pads cards with correct amount of separators
+
 
 
 main()
