@@ -11,11 +11,14 @@ import logging
 from spellchecker import SpellChecker
 from get_my_errors import get_my_errors
 from dto import get_mode_dto
+
+summary_dict = {}
+
 def main():
     desired_mode = get_mode_from_user()
     modePicker(desired_mode)
     archive_input_file("input.txt") #HACK this shouldn't be hardcoded to only take in input.txt file
-
+    print_parsing_summary()
 
 
 #TODO move this to Viewer
@@ -308,6 +311,7 @@ def save_dict_of_lists_to_files(desired_lists_to_sort_to):
             for line in lines:
                 if isinstance(line, str):
                     text_file.write(line + " ")
+                    add_to_parsing_summary(listname, line)
                 else:
                     logging.error(f"line:{line} was not a str")
 
@@ -474,6 +478,16 @@ def archive_input_file(inputfile):
         with open(inputfile, "r") as input:
             archive.write(input.read())
 
+def add_to_parsing_summary(list, line):
+    global summary_dict
+    try:
+        summary_dict[list] = summary_dict[list] + 1
+    except:
+        summary_dict[list] = 0
 
+def print_parsing_summary():
+    global summary_dict
+    print("The parsing printed lines to the following files")
+    print(summary_dict)
 
 main()
