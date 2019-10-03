@@ -5,11 +5,24 @@ from typing import Dict, Any
 
 # Internal modules
 
-# @dataclass(frozen=True)
-class Mode:
+# @dataclass(frozen=True
+class AnkiCard:
+    front: str
+    back: str
+    tag: str
+
+
+class Keyword:
+    regex: str
+    output_file: str
+    #runmode_name?
+
+
+
+class ParsingMode:
     name: str
-    input_name: str
-    output_name: str
+    input_file: str
+    default_output_file: str
 
     # @classmethod
     def __init__(self, raw) -> "mode":

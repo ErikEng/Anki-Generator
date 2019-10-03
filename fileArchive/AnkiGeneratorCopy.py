@@ -14,8 +14,8 @@ from dto import get_mode_dto
 def main():
     desired_mode = get_mode_from_user()
     modePicker(desired_mode)
+    archive_input_file()
 
-#TODO move this to Viewer
 def get_mode_from_user():
     desired_mode = int(
         input(
@@ -35,7 +35,9 @@ def get_mode_from_user():
     return desired_mode
 
 
-def modePicker(runMode):
+def (runMode):
+    #TODO clean this up a bit, maybe make a dict? so
+    mode_dict =
     if runMode == 1:
 
         # kindle_text_to_anki(
@@ -464,6 +466,12 @@ def separatorPadding(line, separatedBy, fieldNum, tag, backSide):
         print("Error in sepatorPadding, more separators than indicated fields")
 
     return line  # pads cards with correct amount of separators
+
+def archive_input_file(inputfile):
+    archive_file = "archive.txt"
+    with open(archive_file, "a") as archive:
+        archive.write(inputfile.read())
+    
 
 
 
