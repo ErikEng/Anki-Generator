@@ -14,6 +14,9 @@ from dto import get_mode_dto
 def main():
     desired_mode = get_mode_from_user()
     modePicker(desired_mode)
+    archive_input_file("input.txt") #HACK this shouldn't be hardcoded to only take in input.txt file
+
+
 
 #TODO move this to Viewer
 def get_mode_from_user():
@@ -464,6 +467,12 @@ def separatorPadding(line, separatedBy, fieldNum, tag, backSide):
         print("Error in sepatorPadding, more separators than indicated fields")
 
     return line  # pads cards with correct amount of separators
+
+def archive_input_file(inputfile):
+    archive_file = "archive.txt"
+    with open(archive_file, "a") as archive:
+        with open(inputfile, "r") as input:
+            archive.write(input.read())
 
 
 
