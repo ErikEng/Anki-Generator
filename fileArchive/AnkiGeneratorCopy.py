@@ -71,7 +71,7 @@ def modePicker(runMode):
         locked_triggers_mode(mode)
 
     elif runMode == 7:
-        mode = get_mode_dto("timestamp_removal_mode")
+        mode = get_mode_dto("timestamp_removal")
         locked_triggers_mode(mode)
 
     elif runMode == 8:
@@ -170,7 +170,7 @@ def locked_triggers_mode(mode_name):
         result_dict = run_mode(mode_name, line)
         results = combine_dictionaries(result_dict, results )
     results = post_process_results(results, mode_name)
-    print(results)
+    # print(results)
     save_dict_of_lists_to_files(results)
 
 def run_mode(mode, line) ->Dict[str, List[str]]:
@@ -221,9 +221,12 @@ def combine_dictionaries( new_dict , original_dict):
     for key, value in new_dict.items():
         if key not in original_dict:
             original_dict[key]=[]
-
         original_dict[key]=original_dict[key] + value # desired behaviour {'test': [1,2]}+{'test': [3,4]} = {'test': [1,2,3,4]}
     return original_dict
+
+def add_to_dict(dict, key, value):
+    temp_dict = {key: [value]}
+    return combine_dictionaries(temp_dict, dict)
 
 def split_line_into_words(line):
     words = (str(line).split(" "))
@@ -277,6 +280,35 @@ def sort_text_into_lists(lines, desired_lists_to_sort_to, regex_dict, tag, separ
 
         elif re.match(regex_dict["yt_transcribe"], line):
             tag = "yt_transcribe"
+
+        elif re.match(regex_dict["book_recs"], line):
+            tag = "book_recs"
+
+        elif re.match(regex_dict["weekly_review"], line):
+            tag = "weekly_review"
+
+        elif re.match(regex_dict["facet"], line):
+            tag = "facet"
+
+
+        elif re.match(regex_dict["event"], line):
+            tag = "event"
+        elif tag == "event":
+            desired_lists_to_sort_to = add_to_dict(desired_lists_to_sort_to, "event", line)
+
+        elif re.match(regex_dict["whiteboard"], line):
+            tag = "whiteboard"
+        elif tag == "whiteboard":
+            desired_lists_to_sort_to = add_to_dict(desired_lists_to_sort_to, tag, line)
+
+        elif tag == "facet":
+            desired_lists_to_sort_to = add_to_dict(desired_lists_to_sort_to, tag, line)
+
+        elif tag == "weekly_review":
+            desired_lists_to_sort_to = add_to_dict(desired_lists_to_sort_to, tag, line)
+
+        elif tag == "book_recs":
+            desired_lists_to_sort_to = add_to_dict(desired_lists_to_sort_to, tag, line)
 
         elif tag == "yt_transcribe":
             transcibed_text = timestamp_removal(line)
@@ -332,6 +364,11 @@ def get_regexes()->Dict[str, str]:
         "academic_check": r"academic:",
         "gdocs_split": r"gdocs_split:",
         "yt_transcribe": r"yt_transcribe:",
+        "book_recs": r"Book Recs:",
+        "weekly_review": r"Weekly review:",
+        "facet": r"Facet:",
+        "event": r"Event_sum:",
+        "whiteboard": r"Whiteboard:",
     }
     return regexes
 
