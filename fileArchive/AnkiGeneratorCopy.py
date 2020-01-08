@@ -11,10 +11,11 @@ import logging
 from spellchecker import SpellChecker
 from get_my_errors import get_my_errors
 from dto import get_mode_dto
-
+from LetterShift import get_right_swifted_word
 summary_dict = {}
 
 def main():
+
     desired_mode = get_mode_from_user()
     modePicker(desired_mode)
     archive_input_file("input.txt") #HACK this shouldn't be hardcoded to only take in input.txt file
@@ -33,7 +34,7 @@ def get_mode_from_user():
             "4 : take over the world \n "
             "5 : run testing mode \n "
             "6 : run splitting mode \n "
-            "7 : run timespamp removal mode \n "
+            "7 : run recurring text removal mode \n "
             "8 : format to ascii \n "
             "Your desired mode: \n"
         )
@@ -123,18 +124,35 @@ def hack_mainframe_mode():
 def testMode():
     print("running test mode")
     # regTest
-    line = "you have 2 cycles that control your sleep, so you need to keep them synchronisted to avoid being fatigued, how do you do that?; Go to sleep at a very regular rate and don't vary it at all if possible. Track your sleep with pulse trackers"
-    tag = "30secSummaries"
-    cardBack = "30sec: Biohacker/super-selfmedicator summary"
-    separatedBy = ";"
-    # card = book_source_padder(line, separatedBy, cardBack, tag)
-    res = separatorPadding(line, separatedBy, 2, tag, cardBack)
+    # line = "you have 2 cycles that control your sleep, so you need to keep them synchronisted to avoid being fatigued, how do you do that?; Go to sleep at a very regular rate and don't vary it at all if possible. Track your sleep with pulse trackers"
+    # tag = "30secSummaries"
+    # cardBack = "30sec: Biohacker/super-selfmedicator summary"
+    # separatedBy = ";"
+    # # card = book_source_padder(line, separatedBy, cardBack, tag)
+    # res = separatorPadding(line, separatedBy, 2, tag, cardBack)
     # print(res)
 
 def get_input_text(inputName):
-    with open(inputName, "r") as inputfile:
+    with open(inputName, "r", encoding = 'utf8') as inputfile:
+
         lines = inputfile.readlines()
     return lines
+
+def removeNonAscii(s): return "".join(filter(lambda x: ord(x)<128, s))
+
+def shift_line(line, direction):
+    shifted_line =[]
+    if direction == "right":
+        for word in line:
+
+            shifted_line.apend(get_right_swifted_word(word))
+    if direction =="left":
+        for word in line:
+            shifted_line.apend(get_left_shifted_word(word))
+    return shifted_line
+
+
+
 
 #TODO move this to Model
 def general_mode(inputName, output_file_name, separatedBy, tag):
@@ -194,11 +212,13 @@ def run_mode(mode, line) ->Dict[str, List[str]]:
     return result_dict
 
 def post_process_results(results, mode):
-    if mode == "split_mode":
-        smaller_lists_dict = split_list_to_smaller_lists(results)
-        processed = combine_dictionaries(results, smaller_lists_dict)
-        return processed
-    return results
+
+    # if mode == "split_mode":
+
+    smaller_lists_dict = split_list_to_smaller_lists(results)
+    processed = combine_dictionaries(results, smaller_lists_dict)
+    return processed
+
 
 def format_to_ascii(line):
     line = str(line)
@@ -290,7 +310,11 @@ def sort_text_into_lists(lines, desired_lists_to_sort_to, regex_dict, tag, separ
         elif re.match(regex_dict["facet"], line):
             tag = "facet"
 
-
+        elif re.match(regex_dict["shift_right"], line):
+            tag = "shift_right"
+        elif tag =="shift_right":
+            shifted = shift_line(line, "right")
+            desired_lists_to_sort_to = add_to_dict(desired_lists_to_sort_to, "shifty", shifted)
         elif re.match(regex_dict["event"], line):
             tag = "event"
         elif tag == "event":
@@ -339,10 +363,10 @@ def sort_text_into_lists(lines, desired_lists_to_sort_to, regex_dict, tag, separ
 #TODO move this to repo
 def save_dict_of_lists_to_files(desired_lists_to_sort_to):
     for listname, lines in desired_lists_to_sort_to.items():
-        with open(listname+".txt", "w") as text_file:
+        with open(listname+".txt", "w", encoding = 'utf8') as text_file:
             for line in lines:
                 if isinstance(line, str):
-                    text_file.write(line + " ")
+                    text_file.write(line + "")
                     add_to_parsing_summary(listname, line)
                 else:
                     logging.error(f"line:{line} was not a str")
@@ -369,23 +393,31 @@ def get_regexes()->Dict[str, str]:
         "facet": r"Facet:",
         "event": r"Event_sum:",
         "whiteboard": r"Whiteboard:",
+        "shift_right": r"Shift_rigth:",
     }
     return regexes
 
-def split_list_to_smaller_lists(word_list):
+def split_list_to_smaller_lists(word_list1):
+    #HACK
+    word_list = word_list1['output']
     number_of_words_per_gdoc = 22000
     number_of_splits = (len(word_list)//number_of_words_per_gdoc )+ 1 #integer division rounded up
     if number_of_splits > 30: #to avoid creating massive amount of files by accident
         number_of_splits = 30
+
+    # print(f"hi, spliteroo {number_of_splits}, len wordlist: {len(word_list)}")
+    # print(type(word_list))
+
     current_list_num = 0
     smaller_lists = {}
     while current_list_num < number_of_splits:
         start_of_current_list = 0+current_list_num*number_of_words_per_gdoc
-
-        end_of_current_list = number_of_words_per_gdoc +current_list_num*number_of_words_per_gdoc
-
+        # end_of_current_list = number_of_words_per_gdoc +current_list_num*number_of_words_per_gdoc
+        end_of_current_list = start_of_current_list + number_of_words_per_gdoc
+        print(f"{start_of_current_list} : {end_of_current_list}")
         current_list = word_list[start_of_current_list:end_of_current_list] #picks the current 22000 word interval
-        smaller_lists["gdocs_split"+str(current_list_num)]= ' '.join(current_list) #Saves to dict
+
+        smaller_lists["gdocs_split"+str(current_list_num)]= ''.join(current_list) #Saves to dict
         current_list_num+=1
 
     return smaller_lists
@@ -511,8 +543,8 @@ def separatorPadding(line, separatedBy, fieldNum, tag, backSide):
 
 def archive_input_file(inputfile):
     archive_file = "archive.txt"
-    with open(archive_file, "a") as archive:
-        with open(inputfile, "r") as input:
+    with open(archive_file, "a", encoding = 'utf8') as archive:
+        with open(inputfile, "r", encoding = 'utf8') as input:
             archive.write(input.read())
 
 def add_to_parsing_summary(list, line):
